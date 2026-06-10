@@ -1,0 +1,26 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+    import: optional:dotenv:.
+
+  datasource:
+    url: jdbc:h2:mem:awsdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  sql:
+    init:
+      schema-locations: classpath:schema.sql
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console  # http://localhost:8080/h2-console
+
+

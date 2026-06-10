@@ -1,0 +1,15 @@
+# S3 통합 테스트용 - DB는 H2로 대체
+spring:
+  config:
+    import: optional:dotenv:.
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      schema-locations: classpath:schema.sql
+  jpa:
+    hibernate:
+      ddl-auto: update

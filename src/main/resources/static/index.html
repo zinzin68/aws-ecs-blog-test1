@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AWS S3 실습</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+
+<h1>AWS S3 파일 실습</h1>
+<p>
+    이 페이지는 Spring Boot + AWS S3 연동 실습입니다.<br>
+    파일을 업로드하면 S3 버킷에 저장되고, DB에는 메타데이터(파일명, storageKey 등)만 저장됩니다.<br>
+    다운로드는 PresignedUrl을 통해 302 리다이렉트로 제공됩니다.<br>
+    삭제 시 S3 파일과 DB 레코드가 함께 삭제됩니다.
+</p>
+<hr>
+
+<h2>1. 단건 업로드</h2>
+<p>파일 하나를 S3에 업로드합니다. storageKey : <code>attachments/{UUID}{확장자}</code></p>
+<input type="file" id="fileInput">
+<input type="text" id="description" placeholder="파일 설명 (선택)">
+<button onclick="uploadOne()">업로드</button>
+<pre id="uploadResult"></pre>
+
+<hr>
+
+<h2>2. 다건 업로드</h2>
+<p>여러 파일을 한 번에 S3에 업로드합니다. 파일마다 UUID storageKey가 개별 생성됩니다.</p>
+<input type="file" id="multiFileInput" multiple>
+<input type="text" id="multiDescription" placeholder="파일 설명 (선택, 전체 공통 적용)">
+<button onclick="uploadMultiple()">다건 업로드</button>
+<pre id="multiUploadResult"></pre>
+
+<hr>
+
+<h2>3. 단건 조회</h2>
+<p>ID로 파일 메타데이터를 조회합니다. 다운로드는 하단 목록의 [다운로드] 버튼을 이용하세요.</p>
+<input type="number" id="findId" placeholder="파일 ID">
+<button onclick="findById()">조회</button>
+<pre id="findResult"></pre>
+
+<hr>
+
+<h2>4. 전체 목록</h2>
+<p>업로드된 파일 전체를 최신순으로 조회합니다. [다운로드]는 PresignedUrl로 302 리다이렉트됩니다.</p>
+<button onclick="loadAll()">목록 불러오기</button>
+<table border="1" id="fileTable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>파일명</th>
+        <th>설명</th>
+        <th>타입</th>
+        <th>크기</th>
+        <th>업로드일</th>
+        <th>다운로드</th>
+        <th>삭제</th>
+    </tr>
+    </thead>
+    <tbody id="fileList"></tbody>
+</table>
+
+<hr>
+
+<h2>5. 삭제</h2>
+<p>
+    S3 버킷에서 실제 파일을 삭제하고 DB 레코드도 함께 삭제합니다.<br>
+    삭제에 필요한 storageKey는 DB에 저장된 값을 사용합니다.
+</p>
+<input type="number" id="deleteId" placeholder="파일 ID">
+<button onclick="deleteFile()">삭제</button>
+<pre id="deleteResult"></pre>
+
+<script>
+    const API = '/api/files';
+
+    // 단건 업로드
+    async function uploadOne() {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) { alert('파일을 선택하세요.'); return; }
+        const description = document.getElementById('description').value;
+
+        const form = new FormData();
+        form.append('file', file);
+        if (description) form.append('description', description);
+
+        const res = await axios.post(API, form);
+        document.getElementById('uploadResult').textContent = JSON.stringify(res.data, null, 2);
+        loadAll();
+    }
+
+    // 다건 업로드
+    async function uploadMultiple() {
+        const files = document.getElementById('multiFileInput').files;
+        if (!files.length) { alert('파일을 선택하세요.'); return; }
+        const description = document.getElementById('multiDescription').value;
+
+        const form = new FormData();
+        for (const f of files) form.append('files', f);
+        if (description) form.append('description', description);
+
+        const res = await axios.post(`${API}/multiple`, form);
+        document.getElementById('multiUploadResult').textContent = JSON.stringify(res.data, null, 2);
+        loadAll();
+    }
+
+    // 단건 조회
+    async function findById() {
+        const id = document.getElementById('findId').value;
+        if (!id) { alert('ID를 입력하세요.'); return; }
+        const res = await axios.get(`${API}/${id}`);
+        document.getElementById('findResult').textContent = JSON.stringify(res.data, null, 2);
+    }
+
+    // 전체 조회
+    async function loadAll() {
+        const res = await axios.get(API);
+        document.getElementById('fileList').innerHTML = res.data.map(f => `
+            <tr>
+                <td>${f.id}</td>
+                <td>${f.fileName}</td>
+                <td>${f.description ?? '-'}</td>
+                <td>${f.contentType}</td>
+                <td>${(f.size / 1024).toFixed(1)} KB</td>
+                <td>${new Date(f.createdAt).toLocaleString('ko-KR')}</td>
+                <td><a href="${API}/${f.id}/download" target="_blank">다운로드</a></td>
+                <td><button onclick="deleteById(${f.id})">삭제</button></td>
+            </tr>`).join('');
+    }
+
+    // 목록에서 바로 삭제
+    async function deleteById(id) {
+        if (!confirm(`파일 ${id}를 삭제하시겠습니까?\nS3 파일과 DB 레코드가 함께 삭제됩니다.`)) return;
+        await axios.delete(`${API}/${id}`);
+        loadAll();
+    }
+
+    // ID 입력해서 삭제
+    async function deleteFile() {
+        const id = document.getElementById('deleteId').value;
+        if (!id) { alert('ID를 입력하세요.'); return; }
+        if (!confirm(`파일 ${id}를 삭제하시겠습니까?\nS3 파일과 DB 레코드가 함께 삭제됩니다.`)) return;
+        await axios.delete(`${API}/${id}`);
+        document.getElementById('deleteResult').textContent = `파일 ${id} 삭제 완료`;
+        loadAll();
+    }
+</script>
+</body>
+</html>

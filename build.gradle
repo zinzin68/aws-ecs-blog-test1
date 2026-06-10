@@ -1,0 +1,63 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.codeit'
+version = '1.0.0'
+description = '15_spring_aws_cicd'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    compileOnly 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.h2database:h2'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // AWS SDK v2 (S3)
+    implementation 'software.amazon.awssdk:s3:2.31.7'
+
+    // UUID v7
+    implementation 'com.fasterxml.uuid:java-uuid-generator:5.1.0'
+
+    // .env 파일 로드 (로컬 개발용)
+    implementation "me.paulschwarz:spring-dotenv:4.0.0"
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+/* ===== UTF-8 강제 ===== */
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+tasks.withType(Test).configureEach {
+    systemProperty 'file.encoding', 'UTF-8'
+}
+tasks.named('bootRun') {
+    jvmArgs = ['-Dfile.encoding=UTF-8']
+}
